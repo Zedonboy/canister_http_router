@@ -5,7 +5,7 @@ use candid::{CandidType, Func};
 use dyn_clone::{clone_trait_object, DynClone};
 use ic_cdk::{api::management_canister::http_request::HttpMethod, trap};
 use matchit::{Params, Router};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use url::Url;
 pub mod extractors;
@@ -26,28 +26,25 @@ mod tests {
     }
 }
 
-#[derive(CandidType, Deserialize)]
-pub struct HttpHeader {
-    name: String,
-    value : String
-}
 
-#[derive(CandidType)]
+pub type HttpHeader = (String, String); 
+
+#[derive(CandidType, Deserialize, Clone)]
 pub struct HttpResponse {
-    status_code: u16,
-    headers: Vec<HttpHeader>,
-    body: ByteBuf,
-    upgrade : Option<bool>,
-    streaming_strategy: Option<StreamingStrategy>
+    pub status_code: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: ByteBuf,
+    pub upgrade : Option<bool>,
+    pub streaming_strategy: Option<StreamingStrategy>
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Clone)]
 pub struct HttpRequest {
-    method : String,
-    url : String,
-    headers : Vec<(String, String)>,
-    body : ByteBuf,
-    certificate_version: Option<u16>
+    pub method : String,
+    pub url : String,
+    pub headers : Vec<(String, String)>,
+    pub body : ByteBuf,
+    pub certificate_version: Option<u16>
 }
 
 impl HttpResponse {
@@ -83,14 +80,16 @@ impl HttpResponse {
         self.body = body;
         self
     }
+
+    
 }
 
 
-#[derive(CandidType)]
+#[derive(CandidType, Deserialize, Clone)]
 pub struct TokenData<T>(pub T);
 // pub struct CallBackFunc(Func);
 
-#[derive(CandidType)]
+#[derive(CandidType, Deserialize, Clone)]
 pub enum StreamingStrategy {
     Callback {
         callback: CallBackFunc,
@@ -104,29 +103,35 @@ pub struct StreamingCallbackHttpResponse<T> {
     token : Option<T>
 }
 
-clone_trait_object!(Handler);
-pub trait Handler: Send + Sync + DynClone {
+
+pub trait Handler {
     /// Handle a request.
     /// The handler is called for requests with a matching path and method.
     fn handle(
         &self,
         req: CanisterRouterContext,
-    ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + Sync>>;
+    ) -> HttpResponse;
 }
 
-impl<F, R> Handler for F
+impl<F> Handler for F
 where
-    F: Fn(CanisterRouterContext) -> R + Send + Sync + DynClone,
-    R: Future<Output = HttpResponse> + Send + Sync + 'static,
+    F: Fn(CanisterRouterContext) -> HttpResponse
 {
     /// Handle a request.
     /// The handler is called for requests with a matching path and method.
     fn handle(
         &self,
         req: CanisterRouterContext,
-    ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + Sync>> {
-        Box::pin(self(req))
+    ) -> HttpResponse {
+        self(req)
     }
+    
+    // fn handle(
+    //     &self,
+    //     req: CanisterRouterContext,
+    // ) -> Pin<Box<HttpResponse> {
+    //     Box::pin(self(req))
+    // }
 }
 
 
@@ -143,7 +148,6 @@ pub struct CanisterRouterContext {
     pub query : Option<HashMap<String, String>>,
 }
 
-#[derive(Clone)]
 pub struct CanisterRouter {
     _route_tree : HashMap<HttpMethod, Router<Box<dyn Handler>>>
 }
@@ -175,7 +179,7 @@ impl CanisterRouter {
 
    
 
-    pub async fn process(&self, req : HttpRequest, call_context: CallType) -> HttpResponse {
+    pub fn process(&self, req : HttpRequest, call_context: CallType) -> HttpResponse {
 
         let router_opt = match req.method.as_str() {
             "POST" => {
@@ -242,7 +246,7 @@ impl CanisterRouter {
                 Some(_df)
             }
         };
-        matcher.value.handle(cntx).await
+        matcher.value.handle(cntx)
 
 
     }
