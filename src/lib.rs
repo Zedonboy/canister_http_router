@@ -2,7 +2,6 @@ use core::str;
 use std::{collections::HashMap, future::Future, pin::Pin};
 
 use candid::{CandidType, Func};
-use dyn_clone::{clone_trait_object, DynClone};
 use ic_cdk::{api::management_canister::http_request::HttpMethod, trap};
 use matchit::{Params, Router};
 use serde::{Deserialize, Serialize};
@@ -29,6 +28,51 @@ mod tests {
 
 pub type HttpHeader = (String, String); 
 
+#[derive(Clone)]
+pub struct HttpResponseBuilder {
+    pub status_code: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: ByteBuf,
+    pub upgrade : Option<bool>,
+    pub streaming_strategy: Option<StreamingStrategy>
+}
+
+impl<'a> HttpResponseBuilder {
+    #[inline]
+    pub fn new() -> Self {
+        HttpResponseBuilder { status_code: 200, headers: vec![], body: ByteBuf::new(), upgrade: None, streaming_strategy: None }
+    }
+
+    pub fn set_status(mut self, code : u16) -> Self {
+        self.status_code = code;
+        self
+    }
+
+    pub fn set_body(mut self, data : ByteBuf) -> Self {
+        self.body = data;
+        self
+    }
+
+    pub fn set_upgrade(mut self, upgrade : Option<bool>) -> Self {
+        self.upgrade = upgrade;
+        self
+    }
+
+    pub fn set_headers(mut self, data : Vec<HttpHeader>) -> Self {
+        self.headers = data;
+        self
+    }
+    pub fn set_streaming_strategy(mut self, data : Option<StreamingStrategy>) -> Self {
+        self.streaming_strategy = data;
+        self
+    }
+
+    pub fn build(self) -> HttpResponse {
+        HttpResponse { status_code: self.status_code, headers: self.headers, body:self.body, upgrade: self.upgrade, streaming_strategy: self.streaming_strategy }
+    }
+
+}
+
 #[derive(CandidType, Deserialize, Clone)]
 pub struct HttpResponse {
     pub status_code: u16,
@@ -48,6 +92,10 @@ pub struct HttpRequest {
 }
 
 impl HttpResponse {
+    #[inline]
+    pub fn builder<'a>() -> HttpResponseBuilder {
+        HttpResponseBuilder::new()
+    }
     pub fn new() -> Self {
         HttpResponse { status_code: 200, headers: vec![], body: ByteBuf::new(), upgrade: None, streaming_strategy: None }
     }
