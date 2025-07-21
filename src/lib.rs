@@ -2,7 +2,7 @@ use core::str;
 use std::{collections::HashMap, future::Future, pin::Pin};
 
 use candid::{CandidType, Func};
-use ic_cdk::{api::management_canister::http_request::HttpMethod, trap};
+use ic_cdk::{management_canister::HttpMethod, trap};
 use matchit::{Params, Router};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
